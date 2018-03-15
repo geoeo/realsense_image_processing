@@ -1,1 +1,3 @@
-# realsense_image_processing
+# Realsense Image Processing
+
+Processing node for R200 images
