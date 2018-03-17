@@ -1,0 +1,7 @@
+<launch>
+
+    <node pkg="depth_node" name="realsense_receiver" type="realsense_image_processing_node" output="screen">
+        <remap from="image/compressed" to="$(arg image_topic)/compressed"/>
+    </node>
+
+</launch>
