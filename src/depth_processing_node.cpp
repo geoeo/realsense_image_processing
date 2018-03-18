@@ -57,7 +57,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &image) {
     if(!view.empty()){
         const cv::Mat &image_ref = view;
         cv::imshow(OPENCV_WINDOW_COLOR, image_ref);
-        cv::waitKey(1); // super important
+        cv::waitKey(1); // super important otherwise image wont be displayed
     }
 }
 
@@ -81,7 +81,7 @@ void depthCallback(const sensor_msgs::ImageConstPtr& image)
     if(!view.empty()){
         const cv::Mat &image_ref = view;
         cv::imshow(OPENCV_WINDOW_DEPTH, image_ref);
-        cv::waitKey(1); // super important
+        cv::waitKey(1); // super important otherwise image wont be displayed
     }
 
 }
@@ -91,43 +91,43 @@ void publishCmd (ImageConverter& ic) {
     boost::mutex::scoped_lock scoped_lock ( depth_image_mutex_, boost::try_to_lock );
     if(!scoped_lock)
         return;
-    ushort maxImageValue = 0;
-    ushort maxLeftValue = 0;
-    ushort maxRightValue = 0;
-    ushort maxStraightValue = 0;
+    ushort minImageValue = UINT16_MAX;
+    ushort minLeftValue = UINT16_MAX;
+    ushort minRightValue = UINT16_MAX;
+    ushort minStraightValue = UINT16_MAX;
     cv::Mat img = cv_depth_ptr->image;
     for(int i = 0; i < img.rows/2; i++){
         for(int j = 0; j < img.cols; j++){
             ushort value = img.at<ushort>(i,j);
 
-            if(value > maxImageValue)
-                maxImageValue = value;
+            if(value < minImageValue)
+                minImageValue = value;
 
             // LEFT
-            if(j < cvFloor(img.cols / 3) && value > maxLeftValue){
-                maxLeftValue = value;
+            if(j < cvFloor(img.cols / 3) && value < minLeftValue){
+                minLeftValue = value;
             }
 
             //RIGHT
-            if(j > cvFloor(2*img.cols / 3) && value > maxRightValue){
-                maxRightValue = value;
+            if(j > cvFloor(2*img.cols / 3) && value < minRightValue){
+                minRightValue = value;
             }
 
             //STRAIGHT
-            if(j >= cvFloor(img.cols / 3) && j <= cvFloor(2*img.cols / 3) && value > maxStraightValue){
-                maxStraightValue = value;
+            if(j >= cvFloor(img.cols / 3) && j <= cvFloor(2*img.cols / 3) && value < minStraightValue){
+                minStraightValue = value;
             }
         }
     }
     cv::imshow(OPENCV_WINDOW_PROCESSING, img);
-    cv::waitKey(1); // super important
+    cv::waitKey(1); // super important otherwise image wont be displayed
     geometry_msgs::Twist twist;
     twist.linear.x = 0.5;
     twist.angular.z = 0.0;
-    if(maxRightValue > maxLeftValue && maxStraightValue > maxRightValue)
-        twist.angular.z = 0.2;
-    if(maxLeftValue > maxRightValue && maxStraightValue > maxLeftValue)
+    if(minRightValue < minLeftValue)
         twist.angular.z = -0.2;
+    if(minLeftValue < minRightValue)
+        twist.angular.z = 0.2;
     ic.pub_twist_cmd_.publish ( twist );
 }
 
