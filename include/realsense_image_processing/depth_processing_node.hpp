@@ -14,8 +14,12 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/interprocess/sync/scoped_lock.hpp>
 
 static const std::string OPENCV_WINDOW_COLOR = "Color Image window";
 static const std::string OPENCV_WINDOW_DEPTH = "Depth Image window";
+static const std::string OPENCV_WINDOW_PROCESSING = "Processing Image window";
+
 
 #endif //PROJECT_DEPTH_PROCESSING_NODE_HPP

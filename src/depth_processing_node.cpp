@@ -4,6 +4,9 @@
 #include "realsense_image_processing/depth_processing_node.hpp"
 
 
+boost::mutex depth_image_mutex_;           /// mutex
+cv_bridge::CvImageConstPtr cv_depth_ptr;
+
 // https://github.com/ros-perception/image_pipeline/blob/indigo/image_view/src/nodes/image_view.cpp
 // http://wiki.ros.org/cv_bridge/Tutorials/UsingCvBridgeToConvertBetweenROSImagesAndOpenCVImages
 class ImageConverter
@@ -61,11 +64,12 @@ void imageCallback(const sensor_msgs::ImageConstPtr &image) {
 void depthCallback(const sensor_msgs::ImageConstPtr& image)
 {
 
-    cv_bridge::CvImageConstPtr cv_ptr;
-
     try
     {
-        cv_ptr = cv_bridge::toCvShare(image,sensor_msgs::image_encodings::MONO16);
+        boost::mutex::scoped_lock scoped_lock ( depth_image_mutex_, boost::try_to_lock );
+        if(!scoped_lock)
+            return;
+        cv_depth_ptr = cv_bridge::toCvShare(image,sensor_msgs::image_encodings::MONO16);
     }
     catch (cv_bridge::Exception& e)
     {
@@ -73,7 +77,7 @@ void depthCallback(const sensor_msgs::ImageConstPtr& image)
         return;
     }
 
-    cv::Mat view = cv_ptr->image;
+    cv::Mat view = cv_depth_ptr->image;
     if(!view.empty()){
         const cv::Mat &image_ref = view;
         cv::imshow(OPENCV_WINDOW_DEPTH, image_ref);
@@ -84,10 +88,46 @@ void depthCallback(const sensor_msgs::ImageConstPtr& image)
 };
 
 void publishCmd (ImageConverter& ic) {
-    //boost::interprocess::scoped_lock<boost::mutex> scoped_lock ( mutex_ );
+    boost::mutex::scoped_lock scoped_lock ( depth_image_mutex_, boost::try_to_lock );
+    if(!scoped_lock)
+        return;
+    ushort maxImageValue = 0;
+    ushort maxLeftValue = 0;
+    ushort maxRightValue = 0;
+    ushort maxStraightValue = 0;
+    cv::Mat img = cv_depth_ptr->image;
+    for(int i = 0; i < img.rows/2; i++){
+        for(int j = 0; j < img.cols; j++){
+            ushort value = img.at<ushort>(i,j);
+
+            if(value > maxImageValue)
+                maxImageValue = value;
+
+            // LEFT
+            if(j < cvFloor(img.cols / 3) && value > maxLeftValue){
+                maxLeftValue = value;
+            }
+
+            //RIGHT
+            if(j > cvFloor(2*img.cols / 3) && value > maxRightValue){
+                maxRightValue = value;
+            }
+
+            //STRAIGHT
+            if(j >= cvFloor(img.cols / 3) && j <= cvFloor(2*img.cols / 3) && value > maxStraightValue){
+                maxStraightValue = value;
+            }
+        }
+    }
+    cv::imshow(OPENCV_WINDOW_PROCESSING, img);
+    cv::waitKey(1); // super important
     geometry_msgs::Twist twist;
-    twist.linear.x = 1.0;
-    twist.angular.z = 0.2;
+    twist.linear.x = 0.5;
+    twist.angular.z = 0.0;
+    if(maxRightValue > maxLeftValue && maxStraightValue > maxRightValue)
+        twist.angular.z = 0.2;
+    if(maxLeftValue > maxRightValue && maxStraightValue > maxLeftValue)
+        twist.angular.z = -0.2;
     ic.pub_twist_cmd_.publish ( twist );
 }
 
@@ -96,6 +136,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc, argv, "depth_processing");
     ImageConverter ic;
+    cv::namedWindow(OPENCV_WINDOW_PROCESSING);
 
     //ros::spin();
     while ( ros::ok()) {
@@ -103,6 +144,8 @@ int main(int argc, char** argv)
         publishCmd(ic);
         ros::Duration(0.01).sleep();
     }
+
+    cv::destroyWindow(OPENCV_WINDOW_PROCESSING);
 
     return 0;
 }
