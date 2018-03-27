@@ -5,7 +5,7 @@
           type="realsense_image_processing_node"
           output="screen">
 
-          <remap from="motion_cmd" to="ackermann/cmd_vel"/>
+          <remap from="motion_cmd" to="/ackermann/cmd_vel"/>
           <remap from="color_channel" to="/realsense/camera/color/image_raw"/>
           <remap from="depth_channel" to="/realsense/camera/depth/image_raw"/>
     </node>
