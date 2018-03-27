@@ -1,6 +1,0 @@
-<launch>
-
-    <node pkg="realsense_image_processing" name="realsense_receiver" type="realsense_image_processing_node" output="screen">
-    </node>
-
-</launch>

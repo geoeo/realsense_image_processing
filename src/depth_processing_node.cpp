@@ -22,11 +22,9 @@ ImageConverter()
 {
 
     // Subscrive to input video feed and publish output video feed
-    color_sub_ = nh_.subscribe("/realsense/camera/color/image_raw", 1, &ImageConverter::imageCallback,this);
-    depth_sub_ = it_.subscribe("/realsense/camera/depth/image_raw", 1, &ImageConverter::depthCallback,this);
-    pub_twist_cmd_ = nh_.advertise<geometry_msgs::Twist> ("ackermann/cmd_vel", 1 );
-    //ROS_INFO("topic: %s",image_sub_.getTopic().c_str());
-    //ROS_INFO("transport: %s",image_sub_.getTransport().c_str());
+    color_sub_ = nh_.subscribe("color_channel", 1, &ImageConverter::imageCallback,this);
+    depth_sub_ = it_.subscribe("depth_channel", 1, &ImageConverter::depthCallback,this);
+    pub_twist_cmd_ = nh_.advertise<geometry_msgs::Twist> ("motion_cmd", 1 );
 
 
     cv::namedWindow(OPENCV_WINDOW_COLOR);
