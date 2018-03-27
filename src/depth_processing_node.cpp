@@ -135,12 +135,14 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "depth_processing");
     ImageConverter ic;
     cv::namedWindow(OPENCV_WINDOW_PROCESSING);
+    int key = 0;
 
-    //ros::spin();
-    while ( ros::ok()) {
+    // checking for q or Q
+    while ( ros::ok() && key != 81 && key != 113) {
         ros::spinOnce();
         publishCmd(ic);
         ros::Duration(0.01).sleep();
+        key = cv::waitKey(1);
     }
 
     cv::destroyWindow(OPENCV_WINDOW_PROCESSING);
