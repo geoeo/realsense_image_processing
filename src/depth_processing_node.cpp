@@ -4,27 +4,30 @@
 #include "realsense_image_processing/depth_processing_node.hpp"
 
 
-boost::mutex depth_image_mutex_;           /// mutex
-cv_bridge::CvImageConstPtr cv_depth_ptr;
-
 // https://github.com/ros-perception/image_pipeline/blob/indigo/image_view/src/nodes/image_view.cpp
 // http://wiki.ros.org/cv_bridge/Tutorials/UsingCvBridgeToConvertBetweenROSImagesAndOpenCVImages
 class ImageConverter
 {
+private:
     ros::NodeHandle nh_;
     image_transport::ImageTransport it_;
     image_transport::Subscriber depth_sub_;
-    ros::Subscriber color_sub_;
+    image_transport::Subscriber color_sub_;
+
+
 public:
     ros::Publisher pub_twist_cmd_;
+    boost::mutex depth_image_mutex_;           /// mutex
+    cv_bridge::CvImageConstPtr cv_depth_ptr;
+
 ImageConverter()
         : it_(nh_)
 {
 
     // Subscrive to input video feed and publish output video feed
-    color_sub_ = nh_.subscribe("color_channel", 1, &ImageConverter::imageCallback,this);
+    color_sub_ = it_.subscribe("color_channel", 1, &ImageConverter::imageCallback,this);
     depth_sub_ = it_.subscribe("depth_channel", 1, &ImageConverter::depthCallback,this);
-    pub_twist_cmd_ = nh_.advertise<geometry_msgs::Twist> ("motion_cmd", 1 );
+    pub_twist_cmd_ = nh_.advertise<geometry_msgs::Twist> ("motion_cmd", 1 ); // For autonomous driving
 
 
     cv::namedWindow(OPENCV_WINDOW_COLOR);
@@ -86,14 +89,15 @@ void depthCallback(const sensor_msgs::ImageConstPtr& image)
 };
 
 void publishCmd (ImageConverter& ic) {
-    boost::mutex::scoped_lock scoped_lock ( depth_image_mutex_, boost::try_to_lock );
+    boost::mutex::scoped_lock scoped_lock ( ic.depth_image_mutex_, boost::try_to_lock );
     if(!scoped_lock)
         return;
     ushort minImageValue = UINT16_MAX;
     ushort minLeftValue = UINT16_MAX;
     ushort minRightValue = UINT16_MAX;
     ushort minStraightValue = UINT16_MAX;
-    cv::Mat img = cv_depth_ptr->image;
+
+    cv::Mat img = ic.cv_depth_ptr->image;
     for(int i = 0; i < img.rows/2; i++){
         for(int j = 0; j < img.cols; j++){
             ushort value = img.at<ushort>(i,j);
