@@ -91,22 +91,43 @@ void depthCallback(const sensor_msgs::ImageConstPtr& image)
 }
 };
 
+//http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_filtering/py_filtering.html
+//https://docs.opencv.org/3.2.0/d4/d86/group__imgproc__filter.html#gad78703e4c8fe703d479c1860d76429e6
 void calcGradient(ImageConverter &ic) {
     boost::mutex::scoped_lock scoped_lock ( ic.color_image_mutex_, boost::try_to_lock );
     if(!scoped_lock)
         return;
 
     cv::Mat img = ic.cv_color_ptr->image;
-    cv::imshow(OPENCV_WINDOW_PROCESSING, img);
+    cv::Mat gradient;
+    cv::Mat gradient_blur;
+    cv::Mat gradient_x;
+    cv::Mat gradient_y;
+    cv::Laplacian(img,gradient,-1,5);
+
+    //cv::GaussianBlur(gradient,gradient_blur,cv::Size(5,5),0);
+    //cv::blur(gradient,gradient_blur,cv::Size(5,5));
+    cv::medianBlur(gradient,gradient_blur,5);
+    //cv::bilateralFilter(gradient,gradient_blur,9,75,75);
+    cv::Sobel(img,gradient_x,-1,1,0,1);
+    cv::Sobel(img,gradient_y,-1,0,1,1);
+
+    cv::imshow(OPENCV_WINDOW_PROCESSING+" Sobel X", gradient_x);
+    cv::waitKey(1); // super important otherwise image wont be displayed
+    cv::imshow(OPENCV_WINDOW_PROCESSING+" Sobel Y", gradient_y);
+    cv::waitKey(1); // super important otherwise image wont be displayed
+    cv::imshow(OPENCV_WINDOW_PROCESSING+"Laplace", gradient);
+    cv::waitKey(1); // super important otherwise image wont be displayed
+    cv::imshow(OPENCV_WINDOW_PROCESSING+"Laplace Blur", gradient_blur);
     cv::waitKey(1); // super important otherwise image wont be displayed
 }
 
-// TODO: Look into locks when publishing motion commands which depend images
+
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "depth_processing");
+    ros::init(argc, argv, "image_processing");
     ImageConverter ic;
-    cv::namedWindow(OPENCV_WINDOW_PROCESSING);
+    //cv::namedWindow(OPENCV_WINDOW_PROCESSING);
     int key = 0;
 
     // checking for q or Q
