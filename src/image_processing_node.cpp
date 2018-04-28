@@ -1,7 +1,7 @@
 //
 // Created by marc on 15.03.18.
 //
-#include "realsense_image_processing/depth_processing_node.hpp"
+#include "realsense_image_processing/image_processing_node.hpp"
 
 
 // https://github.com/ros-perception/image_pipeline/blob/indigo/image_view/src/nodes/image_view.cpp
@@ -18,7 +18,9 @@ private:
 public:
     ros::Publisher pub_twist_cmd_;
     boost::mutex depth_image_mutex_;           /// mutex
+    boost::mutex color_image_mutex_;           /// mutex
     cv_bridge::CvImageConstPtr cv_depth_ptr;
+    cv_bridge::CvImageConstPtr cv_color_ptr;
 
 ImageConverter()
         : it_(nh_)
@@ -27,9 +29,6 @@ ImageConverter()
     // Subscrive to input video feed and publish output video feed
     color_sub_ = it_.subscribe("color_channel", 1, &ImageConverter::imageCallback,this);
     depth_sub_ = it_.subscribe("depth_channel", 1, &ImageConverter::depthCallback,this);
-    //TODO: make switch between IWS and twist
-    pub_twist_cmd_ = nh_.advertise<geometry_msgs::Twist> ("motion_cmd", 1 ); // For autonomous driving
-
 
     cv::namedWindow(OPENCV_WINDOW_COLOR);
     cv::namedWindow(OPENCV_WINDOW_DEPTH);
@@ -43,11 +42,14 @@ ImageConverter()
 
 void imageCallback(const sensor_msgs::ImageConstPtr &image) {
 
-    cv_bridge::CvImageConstPtr cv_ptr;
+    //cv_bridge::CvImageConstPtr cv_ptr;
 
     try
     {
-        cv_ptr = cv_bridge::toCvShare(image,sensor_msgs::image_encodings::RGB8);
+        boost::mutex::scoped_lock scoped_lock ( color_image_mutex_, boost::try_to_lock );
+        if(!scoped_lock)
+            return;
+        cv_color_ptr = cv_bridge::toCvShare(image,sensor_msgs::image_encodings::BGR8);
     }
     catch (cv_bridge::Exception& e)
     {
@@ -55,7 +57,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &image) {
         return;
     }
 
-    cv::Mat view = cv_ptr->image;
+    cv::Mat view = cv_color_ptr->image;
     if(!view.empty()){
         const cv::Mat &image_ref = view;
         cv::imshow(OPENCV_WINDOW_COLOR, image_ref);
@@ -90,48 +92,13 @@ void depthCallback(const sensor_msgs::ImageConstPtr& image)
 };
 
 void calcGradient(ImageConverter &ic) {
-    boost::mutex::scoped_lock scoped_lock ( ic.depth_image_mutex_, boost::try_to_lock );
+    boost::mutex::scoped_lock scoped_lock ( ic.color_image_mutex_, boost::try_to_lock );
     if(!scoped_lock)
         return;
-    ushort minImageValue = UINT16_MAX;
-    ushort minLeftValue = UINT16_MAX;
-    ushort minRightValue = UINT16_MAX;
-    ushort minStraightValue = UINT16_MAX;
 
-    cv::Mat img = ic.cv_depth_ptr->image;
-    for(int i = 0; i < img.rows/2; i++){
-        for(int j = 0; j < img.cols; j++){
-            ushort value = img.at<ushort>(i,j);
-
-            if(value < minImageValue)
-                minImageValue = value;
-
-            // LEFT
-            if(j < cvFloor(img.cols / 3) && value < minLeftValue){
-                minLeftValue = value;
-            }
-
-            //RIGHT
-            if(j > cvFloor(2*img.cols / 3) && value < minRightValue){
-                minRightValue = value;
-            }
-
-            //STRAIGHT
-            if(j >= cvFloor(img.cols / 3) && j <= cvFloor(2*img.cols / 3) && value < minStraightValue){
-                minStraightValue = value;
-            }
-        }
-    }
+    cv::Mat img = ic.cv_color_ptr->image;
     cv::imshow(OPENCV_WINDOW_PROCESSING, img);
     cv::waitKey(1); // super important otherwise image wont be displayed
-    geometry_msgs::Twist twist;
-    twist.linear.x = 0.5;
-    twist.angular.z = 0.0;
-    if(minRightValue < minLeftValue)
-        twist.angular.z = -0.2;
-    if(minLeftValue < minRightValue)
-        twist.angular.z = 0.2;
-    ic.pub_twist_cmd_.publish ( twist );
 }
 
 // TODO: Look into locks when publishing motion commands which depend images
